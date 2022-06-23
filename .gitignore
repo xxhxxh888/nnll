@@ -1,3 +1,6 @@
+#ignore over 100MB files;
+exp1-master/dataset/Amazon_Home_and_Kitchen/Amazon_Home_and_Kitchen.inter
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
