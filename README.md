@@ -1,6 +1,6 @@
 # CL to improve SASRec
 
-#about the effects:
+# about the effects:
 
 (1) sas-cts can enhence performance on 2 amazon-datasets;
 
@@ -18,7 +18,7 @@
   
   
 
-#install
+# install
 
 pip install pyyaml colorlog colorama
 
@@ -28,7 +28,7 @@ in dir: your-path/nnll/exp1/dataset/Amazon_Home_and_Kitchen/
 
 extract the .zip file to obtain .inter file;
 
-#run training config
+# run training config
 
 please check your-path/nnll/exp1/sas_cts.yaml if running run_sas__dtset.py;
 
@@ -38,17 +38,17 @@ for Amazon_Home_and_Kitchen, I have used following batch-size;
 
 besides, all dropout configs are set to 0.1, for easy compare the original SASRec & SAS-CTS;
 
-#run amazon-dataset
+# run amazon-dataset
 
 cd your-path/nnll/exp1/
 
 python run_sas__dtset.py
 
-#about the prog config
+# about the prog config
 
 please check: your-path/nnll/exp1/rstat.py
 
-#about the model file
+# about the model file
 
 (1) sascts.py;  changed code mainly in about line283: calculate_loss();
 
