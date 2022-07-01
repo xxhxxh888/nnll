@@ -13,11 +13,12 @@ save_dataloaders: False
 # training settings
 epochs: 300
 #train_batch_size: 2048
-#train_batch_size: 2400 #home-kitchen; 3090-gpu;24G;
-train_batch_size: 500 #home-kitchen; 1660-gpu;6G;
+train_batch_size: 2400 #home-kitchen;
+#train_batch_size: 1200 #home-kitchen;
 #train_batch_size: 2000 #toys-games;
 learner: adam
-learning_rate: 0.001
+learning_rate: 0.001 #for 2000
+#learning_rate: 0.0002 #0.0001 for 200
 neg_sampling:
   uniform: 1
 eval_step: 1
@@ -43,7 +44,7 @@ topk: [10]
 valid_metric: Recall@10
 valid_metric_bigger: True
 #eval_batch_size: 4096
-eval_batch_size: 80
+eval_batch_size: 40
 
 loss_decimal_place: 4
 metric_decimal_place: 4

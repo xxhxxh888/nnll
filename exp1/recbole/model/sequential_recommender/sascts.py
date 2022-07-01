@@ -113,9 +113,9 @@ class SASCTS(SequentialRecommender):
         
         self.train_steps=-1
         
-        print('--------------token-shuffle:',rstat.USE_TOKEN_SHUFFLE)
-        print('--------------add-noise:',rstat.USE_ADD_NOISE)
-        print('--------------prj-head:',rstat.USE_PRJ_HEAD)
+        print('----------token-shuffle:',rstat.USE_TOKEN_SHUFFLE)
+        print('----------add-noise:',rstat.USE_ADD_NOISE)
+        print('----------prj-head:',rstat.USE_PRJ_HEAD)
         
         affine = True
         self.projection_head = torch.nn.ModuleList()
@@ -339,12 +339,12 @@ class SASCTS(SequentialRecommender):
             nns_labels = torch.arange( nns_batch_size).long().to(raw_seq_output.device) 
             nns_loss_fct = nn.CrossEntropyLoss()            
         
-            nns_z_negative = torch.randn([int(nns_batch_size * 1 ), nns_hidden_size], device=raw_seq_output.device)  # * variation + avg
+            nns_num=int(nns_batch_size * rstat.noise_neg_sample_batch_sz_times )
+        
+            nns_z_negative = torch.randn([nns_num, nns_hidden_size], device=raw_seq_output.device)  # * variation + avg
             nns_z_negative.requires_grad = True        
             
             nns_cos_sim = self.nns_sim(raw_seq_output.unsqueeze(1), cts_seq_output.unsqueeze(0))
-        
-            nns_loss_fct = nn.CrossEntropyLoss()
         
             for _ in range(rstat.noise_neg_sample_loops): # (cls.model_args.pgd):#!!!!!!!!!
                 nns_cos_sim_negative = self.nns_sim(raw_seq_output.unsqueeze(1), nns_z_negative.unsqueeze(0))
@@ -366,19 +366,65 @@ class SASCTS(SequentialRecommender):
             nns_loss = nns_loss_fct(nns_cos_sim_fused, nns_labels) #common cross-entropy;         
         
             a=0
-            loss+=rstat.noise_neg_sample_lambda * nns_loss#!!!!!!!!!!            
-
+            loss+=rstat.noise_neg_sample_lambda * nns_loss#!!!!!!!!!!    
+            
+            
+            #cos_sim_negative = self.nns_sim(z1.unsqueeze(1), z_negative.unsqueeze(0))
+            nns_cos_sim = torch.cat([nns_cos_sim, nns_cos_sim_negative], 1)
+        
+            #nns_cos_sim_negative_fix = torch.zeros_like(nns_cos_sim_negative, device=nns_cos_sim_negative.device)   #cls.sim(z1_fix.unsqueeze(1), z_negative.unsqueeze(0))
+            #cos_sim_fix = torch.cat([cos_sim_fix, nns_cos_sim_negative_fix], 1)
+        
+            labels_dis = torch.cat([torch.eye(nns_cos_sim.size(0), device=nns_cos_sim.device)[nns_labels], torch.zeros_like(nns_cos_sim_negative)], -1)
+            #weights = torch.where(cos_sim_fix > cls.model_args.phi * 20, 0, 1) #orig,err??
+            #weights = torch.where(nns_cos_sim > cls.model_args.phi * 20, 0, 1) #pptt!!  should be this??
+            weights = torch.where(nns_cos_sim > rstat.noise_neg_sample_sim_as_positive, 0, 1) #>val?0:1; 
+            
+            mask_weights = torch.eye(nns_cos_sim.size(0), device = nns_cos_sim.device) - torch.diag_embed(torch.diag(weights))
+            weights = weights + torch.cat([mask_weights, torch.zeros_like(nns_cos_sim_negative)], -1)
+            soft_cos_sim = torch.softmax(nns_cos_sim * weights, -1)
+            #note: nn.CrossEntropyLoss is diff from math CrossEntropyLoss
+            #https://zhuanlan.zhihu.com/p/98785902
+            nns_weight_loss=None
+            if False:
+                nns_weight_loss = - (labels_dis * torch.log(soft_cos_sim) + (1 - labels_dis) * torch.log(1 - soft_cos_sim))#orig
+                #problems:because negative sim is very small,and negative samples number is big,so after "mean" op,the mean-loss is very small,0.01,seems the loss usless,so change code to reduce the weight/importance of negative sample loss;
+                nns_weight_loss = torch.mean(nns_weight_loss) #orig,meaningless??
+            else:
+                loss_part1=- (labels_dis * torch.log(soft_cos_sim))
+                loss_part1_s=torch.sum(loss_part1)
+                loss_part1_m=loss_part1_s/torch.sum(labels_dis)
+                
+                loss_part2=- ((1 - labels_dis) * torch.log(1 - soft_cos_sim))
+                loss_part2_s=torch.sum(loss_part2)
+                loss_part2_m=loss_part2_s/torch.sum(1-labels_dis)
+                
+                nns_weight_loss = torch.sum( torch.Tensor(rstat.noise_neg_sample_loss_weights).to(nns_cos_sim.device) * torch.Tensor([loss_part1_m,loss_part2_m]).to(nns_cos_sim.device))
+            
+            
+            #loss = torch.mean(loss_fct(torch.log_softmax(cos_sim, -1), labels_dis) * weights)    #+ 0.1*kl_loss
+        
+            t1=int((weights.shape[0]*weights.shape[1]-torch.sum(weights)).to('cpu').numpy())#debug
+            if t1>0:
+                a=0            
+            if np.random.random()<0.01:
+                #print(' nns_weighted_loss:',nns_weight_loss)
+                a=0
+            
+            loss+=rstat.noise_neg_sample_weight_loss_lambda * nns_weight_loss
+            a=0
+            
 
 #        cts_loss = self.cts_loss_2(raw_seq_output, cts_seq_output, temp=1.0)
         loss += self.lambda_cts * nce_loss
         
         loss += rstat.cts_layer2_loss_lambda * nce_loss_l2 #pptt!!
         
-        if np.random.random()<0.02: #0.01:#pptt!!
-            print(' %d,%d,%d; %d;  %.4f;%.4f; %.4f; train_steps:%d; loss:%s;'%(rstat.USE_PRJ_HEAD,rstat.USE_TOKEN_SHUFFLE,rstat.USE_ADD_NOISE,
+        if np.random.random()<0.01: #0.01:#pptt!!
+            print(' %d,%d,%d; %d;  %.4f;%.4f; %.4f; train_steps:%d; loss:%s;  nns-loss:%s'%(rstat.USE_PRJ_HEAD,rstat.USE_TOKEN_SHUFFLE,rstat.USE_ADD_NOISE,
                                                                      rstat.USE_NOISE_NEG_SAMPLE,
                                                             self.lambda_cts, rstat.cts_layer2_loss_lambda,  rstat.noise_neg_sample_lambda,
-                                                            rstat.train_steps, str(loss)))
+                                                            rstat.train_steps, str(loss), str(nns_weight_loss) ))
         
         return loss
 
