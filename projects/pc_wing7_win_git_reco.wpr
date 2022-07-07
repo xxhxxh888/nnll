@@ -1,0 +1,32 @@
+#!wing
+#!version=7.0
+##################################################################
+# Wing project file                                              #
+##################################################################
+[project attributes]
+proj.directory-list = [{'dirloc': loc('../exp1'),
+                        'excludes': (),
+                        'filter': u'All Source Files',
+                        'include_hidden': False,
+                        'recursive': True,
+                        'watch_for_changes': True},
+                       {'dirloc': loc('../ConSERT-master'),
+                        'excludes': (),
+                        'filter': u'All Source Files',
+                        'include_hidden': False,
+                        'recursive': True,
+                        'watch_for_changes': True},
+                       {'dirloc': loc('../DCLR-main'),
+                        'excludes': (),
+                        'filter': u'All Source Files',
+                        'include_hidden': False,
+                        'recursive': True,
+                        'watch_for_changes': True}]
+proj.file-type = 'shared'
+proj.launch-config = {loc('../ConSERT-master/main.py'): ('project',
+        (u'--no_pair --seed 1 --apex_amp_opt_level O1 --batch_size 96 --max_seq_length 64 --evaluation_steps 200 --add_cl --cl_loss_only --cl_rate 0.15 --temperature 0.1 --learning_rate 0.0000005 --train_data stssick --num_epochs 10 --da_final_1 feature_cutoff --da_final_2 shuffle --cutoff_rate_final_1 0.2 --model_name_or_path E:/nnll/dowload_dt_models/bert-base-uncased/ --model_save_path ./output/unsup-consert-base --force_del --no_dropout --patience 10',
+         '')),
+                      loc('../../../dclr-main/train.py'): ('project',
+        (u'--model_name_or_path    E:/nnll/dowload_dt_models/bert-base-uncased/ \n    --c_model_name_or_path  E:/nnll/dowload_dt_models/unsup-simcse-bert-base-uncased/ \n    --train_file   E:/nnll/dowload_dt_models/wiki1m_for_simcse.txt \n    --output_dir result/my-unsup-simcse-bert-base-uncased \n    --num_train_epochs 3 \n    --per_device_train_batch_size 8 \n    --learning_rate 3e-5 \n    --max_seq_length 32 \n    --evaluation_strategy steps \n    --metric_for_best_model avg_sts \n    --load_best_model_at_end yes \n    --eval_steps 125 \n    --pooler_type cls \n    --mlp_only_train no \n    --overwrite_output_dir yes \n    --temp 0.05 \n    --phi 0.9 \n    --noise_times 1 \n    --gradient_accumulation_steps 1 \n    --do_train yes \n    --do_eval no \n    --is_base True ',
+         ''))}
+proj.main-file = loc('../exp1/run_sas__dtset.py')
