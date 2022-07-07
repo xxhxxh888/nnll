@@ -13,7 +13,8 @@ save_dataloaders: False
 # training settings
 epochs: 300
 #train_batch_size: 2048
-train_batch_size: 2400 #home-kitchen;
+#train_batch_size: 2400 #home-kitchen;
+train_batch_size: 2 #home-kitchen;
 #train_batch_size: 1200 #home-kitchen;
 #train_batch_size: 2000 #toys-games;
 learner: adam

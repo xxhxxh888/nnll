@@ -64,6 +64,10 @@ class SASCTS(SequentialRecommender):
 
     def __init__(self, config, dataset):
         super(SASCTS, self).__init__(config, dataset)
+        
+        self.adv_noise  =None #vector like input emb; pptt!!
+        self.input_emb0 =None #item-emb+position-emb; orig;pptt!!;
+        self.use_exist_input_emb=False  #True: do not calc by 'item-emb+position-emb',directly use exist member-var;
 
         # load parameters info
         self.lambda_cts = rstat.cts_loss_lambda  #0 # 0.06 # 0.02 #home-kitchen #0.06 #yelp; #0.02 #toys-games; #0.1
@@ -259,9 +263,18 @@ class SASCTS(SequentialRecommender):
         if rstat.USE_ADD_NOISE and is_train:#pptt!!
             input_emb = item_emb + position_embedding+noise
         else:
-            input_emb = item_emb + position_embedding #orig;
+            #input_emb = item_emb + position_embedding #orig;
+            input_emb0 = item_emb + position_embedding #pptt!! change variable name;
             
-        input_emb = self.LayerNorm(input_emb)
+            if not self.use_exist_input_emb:
+                self.input_emb0=input_emb0
+            else:
+                assert(self.input_emb0 is not None)
+                input_emb0=self.input_emb0
+            
+            
+        #input_emb = self.LayerNorm(input_emb)#orig;
+        input_emb = self.LayerNorm(input_emb0)#change variable name;pptt!!
         input_emb = self.dropout(input_emb)
 
         extended_attention_mask = self.get_attention_mask(item_seq) 
@@ -308,12 +321,29 @@ class SASCTS(SequentialRecommender):
 
         raw_seq_output,raw_seq_output_l2 = self.forward(item_seq, item_seq_len) #pptt!!
         
+        
+        self.input_emb0
+        aa=self.input_emb0.clone()
+        aa_id=id(self.input_emb0)
+        
+        
         if rstat.USE_PRJ_HEAD:
             raw_seq_output = self.projection_head_map(raw_seq_output, self.mode)#pptt!!
     
         
         if self.config['aug'] == 'self':
+            
+            self.use_exist_input_emb=False #pptt!! to keep same address & member-var for backward-grad;
+            
             cts_seq_output,cts_seq_output_l2 = self.forward(item_seq, item_seq_len)
+            
+            self.input_emb0
+            bb=self.input_emb0.clone()
+            bb_id=id(self.input_emb0)            
+            #assert(torch.min(torch.Tensor([1])==torch.Tensor([1])).numpy().tolist())
+            #assert(torch.min(aa==bb).cpu().numpy().tolist())
+            #assert(aa_id==bb_id)
+            
             if rstat.USE_PRJ_HEAD:
                 cts_seq_output = self.projection_head_map(cts_seq_output, 1 - self.mode)#pptt!!
             
@@ -324,9 +354,46 @@ class SASCTS(SequentialRecommender):
         self.mode = 1 - self.mode     #pptt!!  
 
 
+        
+        
+
         cts_nce_logits, cts_nce_labels = self.cts_loss(raw_seq_output, cts_seq_output, temp=1.0,
                                                         batch_size=item_seq_len.shape[0])
         nce_loss = self.loss_fct(cts_nce_logits, cts_nce_labels)
+
+        #above 2 fwd, self.input_emb0 keep same address??  2 diff address;
+        #positive sample: 1 common fwd, the other add adv-noise?? or 2 fwd add adv-noise with diff coeff??
+        if rstat.UAE_ADV_NOISE:
+            # 2. adversarial backward
+            self.input_emb0.retain_grad()
+            #embedding_output_b.retain_grad()
+            nce_loss.backward(retain_graph=True)
+            unnormalized_noise_a = self.input_emb0.grad.detach_()
+            #unnormalized_noise_b = embedding_output_b.grad.detach_()
+            for p in self.parameters():
+                if p.grad is not None:
+                    p.grad.detach_()
+                    p.grad.zero_()  # clear the gradient on parameters            
+        
+            do_noise_normalization=True
+        
+            if do_noise_normalization:  # do normalization
+                norm_a = unnormalized_noise_a.norm(p=2, dim=-1)
+                normalized_noise_a = unnormalized_noise_a / (norm_a.unsqueeze(dim=-1) + 1e-10)  # add 1e-10 to avoid NaN
+                #norm_b = unnormalized_noise_b.norm(p=2, dim=-1)
+                #normalized_noise_b = unnormalized_noise_b / (norm_b.unsqueeze(dim=-1) + 1e-10)  # add 1e-10 to avoid NaN
+            else:  # no normalization
+                normalized_noise_a = unnormalized_noise_a
+                #normalized_noise_b = unnormalized_noise_b
+                
+            noise_norm=0.01
+            
+            noise_a = noise_norm * normalized_noise_a
+            #noise_b = self.noise_norm * normalized_noise_b
+
+
+
+
 
 
         cts_nce_logits_l2, cts_nce_labels_l2 = self.cts_loss(raw_seq_output_l2, cts_seq_output_l2, temp=1.0,

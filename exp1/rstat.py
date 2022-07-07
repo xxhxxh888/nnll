@@ -5,7 +5,8 @@ train_steps=-1    #usless now;
 
 USE_PRJ_HEAD     =False  #wether use project-head;     
 USE_TOKEN_SHUFFLE=False  #wether use token-shuffle;
-USE_ADD_NOISE    =False  #wether add guassian noise;
+USE_ADD_NOISE    =False  #wether add guassian noise; seems usless;
+UAE_ADV_NOISE	 =True   #adversial attack positive sample noise;  do not use token-shuffle;
 
 USE_LIKE_FINETUNE=False  #seems useless;ignore this;
 
